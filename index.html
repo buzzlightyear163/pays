@@ -97,7 +97,8 @@ nav {
 .brand svg { width: 34px; height: 34px; }
 .brand b { font: 800 23px/1 var(--display); letter-spacing: .015em; font-variation-settings: 'opsz' 14; }
 .links { display: flex; gap: 28px; margin-left: 18px; }
-.links a { font: 400 10.5px/1 var(--data); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); text-decoration: none; padding: 8px 0; }
+.links a { font: 400 10.5px/1 var(--data); letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); text-decoration: none; padding: 8px 0; white-space: nowrap; }
+.status-pill { white-space: nowrap; }
 .links a:hover { color: var(--ink); text-decoration: underline; text-underline-offset: 4px; }
 .nav-right { margin-left: auto; display: flex; align-items: center; gap: 18px; }
 .status-pill { font: 400 9.5px/1 var(--data); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 8px; }
@@ -270,6 +271,10 @@ footer { border-top: 1px solid var(--ink); padding: 36px var(--pad) 44px; displa
 footer .links { margin: 4px 0 0; flex-wrap: wrap; row-gap: 6px; }
 footer .fine { max-width: 440px; text-align: right; }
 .ca-line { margin-top: 12px; font: 400 10px/1.4 var(--data); color: var(--ink-2); display: none; }
+
+/* ---------- narrow desktop: keep the nav on one line ---------- */
+@media (max-width: 1240px) { nav .status-pill { display: none; } nav .links { gap: 18px; } }
+@media (max-width: 1100px) { nav .links a:nth-child(n+4) { display: none; } }
 
 /* ---------- laptop ---------- */
 @media (max-width: 1340px) {
@@ -1050,7 +1055,7 @@ const CONFIG = {
     if (o.labels) o.labels.forEach(L => {
       const c = coins[L.idx], rm = r0Of(L.idx) + bw / 2;
       const [px, py] = P(rm, L.deg * Math.PI / 180);
-      const g = el('g', {}, svg);
+      const g = el('g', { class: 'callout' }, svg);
       el('path', { d: `M${px} ${py} L${L.x + 10} ${L.y - 4} L${L.x + 2} ${L.y - 4}`, fill: 'none', stroke: ink, 'stroke-width': 0.8 }, g);
       el('circle', { cx: px, cy: py, r: 3.2, fill: '#ecf0ea', stroke: ink, 'stroke-width': 1 }, g);
       el('circle', { cx: px, cy: py, r: 1.1, fill: ink }, g);
@@ -1128,19 +1133,35 @@ const CONFIG = {
   /* ------------------------------ hero ------------------------------ */
   const heroSvg = document.getElementById('heroSeal');
   const hero = document.getElementById('top');
+  // callouts are drawn, then any that touch the copy column are removed
+  function heroLabels(cx, cy, s) {
+    return [{ idx: 0, deg: 296, x: cx - 400 * s, y: cy - 150 * s },
+            { idx: COINS.length - 1, deg: 226, x: cx - Math.sqrt(Math.pow(410 * s, 2) - Math.pow(300 * s, 2)) - 16, y: cy + 300 * s }];
+  }
+  function pruneCallouts() {
+    const hb = heroSvg.getBoundingClientRect();
+    const lines = q => { const e = document.querySelector(q); if (!e) return []; const r = document.createRange(); r.selectNodeContents(e); return [...r.getClientRects()]; };
+    const boxes = [...lines('.hero .eyebrow'), ...lines('.hero h1'), ...lines('.hero .lede'), document.getElementById('heroCheck').getBoundingClientRect(), document.querySelector('.hero .honest').getBoundingClientRect()];
+    heroSvg.querySelectorAll('g.callout').forEach(g => {
+      const bb = g.getBBox(), r = { left: hb.left + bb.x - 14, right: hb.left + bb.x + bb.width + 14, top: hb.top + bb.y - 10, bottom: hb.top + bb.y + bb.height + 10 };
+      if (boxes.some(c => !(r.right < c.left || r.left > c.right || r.bottom < c.top || r.top > c.bottom))) g.remove();
+    });
+  }
+
   function drawHero() {
     const mobile = window.innerWidth <= 900;
     const wrap = heroSvg.parentNode, b = wrap.getBoundingClientRect();
     const W = Math.round(b.width), H = Math.round(b.height);
     if (!mobile) {
       const s = Math.max(0.72, Math.min(1.15, W / 1440, H / 900));
-      const cx = W - 300 * s, cy = Math.round(H * 0.545);
+      const lede = document.querySelector('.hero .lede').getBoundingClientRect(), copyR = lede.right - b.left;
+      const cx = Math.max(W - 300 * s, copyR + 28 + 375 * s), cy = Math.round(H * 0.545);
       drawSeal(heroSvg, COINS, {
         W, H, cx, cy, hole: 124 * s, outer: 366 * s, gutter: 20, s, topSafe: 74,
         echo: [452, 520, 610, 730, 890, 1090, 1330].map(r => r * s), micro: true, center: centreHero, interactive: true, draw: 1700,
-        labels: [{ idx: 0, deg: 296, x: cx - 400 * s, y: cy - 150 * s },
-                 { idx: COINS.length - 1, deg: 226, x: cx - Math.sqrt(Math.pow(410 * s, 2) - Math.pow(300 * s, 2)) - 16, y: cy + 300 * s }]
+        labels: heroLabels(cx, cy, s)
       });
+      pruneCallouts();
     } else {
       const R = Math.min(W, H) / 2 - 20, hole = R * 0.32;
       drawSeal(heroSvg, COINS, {
